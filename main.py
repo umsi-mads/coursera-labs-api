@@ -1,5 +1,6 @@
 """Coursera API Client."""
 
+import os
 from dataclasses import dataclass
 import logging
 import requests
@@ -28,15 +29,15 @@ def filter_params(params, keys):
 class Coursera:
     """Coursera API client."""
 
-    creds = Credentials(
-        # These credentials are published in the coursera_autograder repo.
-        client_id="NS8qaSX18X_Eu0pyNbLsnA",
-        client_secret="bUqKqGywnGXEJPFrcd4Jpw",
-        scopes="view_profile manage_graders access_course_authoring_api",
-    )
-    auth = oauth2.build_oauth2(creds).build_authorizer()
-
     API_ROOT = "https://api.coursera.org/api/v1"
+
+    def __init__(self):
+        self.creds = Credentials(
+            client_id=os.environ.get("COURSERA_CLIENT_ID"),
+            client_secret=os.environ.get("COURSERA_CLIENT_SECRET"),
+            scopes="view_profile access_course_authoring_api",
+        )
+        self.auth = oauth2.build_oauth2(self.creds).build_authorizer()
 
     def create_asset(self, course_id, params=None):
         """Create an asset for a course."""
@@ -58,36 +59,28 @@ class Coursera:
             ],
         )
 
-        resp = self._authed_request(
+        return self._authed_request(
             "POST", "/courses/{}/assets".format(course_id), body=params,
         )
-
-        return resp
 
     def get_asset(self, course_id, asset_id):
         """Get an asset for a course."""
 
-        resp = self._authed_request(
+        return self._authed_request(
             "GET", "/courses/{}/assets/{}".format(course_id, asset_id),
         )
-
-        return resp
 
     def get_images(self, course_id):
         """Get a list of images for a course."""
 
-        resp = self._authed_request("GET", "/courses/{}/labImages".format(course_id),)
-
-        return resp
+        return self._authed_request("GET", "/courses/{}/labImages".format(course_id))
 
     def get_labs(self, course_id, image_id):
         """Get a list of labs using an image for a course."""
 
-        resp = self._authed_request(
+        return self._authed_request(
             "GET", "/courses/{}/labImages/{}/labs".format(course_id, image_id),
         )
-
-        return resp
 
     def update_lab(self, course_id, image_id, lab_id, params=None):
         """Update the details of a lab."""
@@ -97,13 +90,11 @@ class Coursera:
 
         filter_params(params, ["name", "description"])
 
-        resp = self._authed_request(
+        return self._authed_request(
             "UPDATE",
             "/courses/{}/labImages/{}/labs/{}".format(course_id, image_id, lab_id),
             body=params,
         )
-
-        return resp
 
     def create_mount_point(self, course_id, image_id, lab_id, params=None):
         """Create or update a mount point for a lab."""
@@ -115,14 +106,12 @@ class Coursera:
             params, ["mountPath", "type", "newMountPath", "volumeArchiveAssetId"]
         )
 
-        resp = self._authed_request(
+        return self._authed_request(
             "POST",
             "/courses/{}/labImages/{}/labs".format(course_id, image_id),
             body=params,
             params={"action": "createOrPatchMountPoint", "labId": lab_id},
         )
-
-        return resp
 
     def delete_mount_point(self, course_id, image_id, lab_id, params=None):
         """Delete a mount point for a lab."""
@@ -132,14 +121,12 @@ class Coursera:
 
         filter_params(params, ["mountPath"])
 
-        resp = self._authed_request(
+        return self._authed_request(
             "POST",
             "/courses/{}/labImages/{}/labs".format(course_id, image_id),
             body=params,
             params={"action": "deleteMountPoint", "labId": lab_id},
         )
-
-        return resp
 
     def async_publish_lab(self, course_id, image_id, lab_id, params=None):
         """Start publishing a lab asynchronously."""
@@ -149,38 +136,51 @@ class Coursera:
 
         filter_params(params, ["publishType", "publishSummary"])
 
-        resp = self._authed_request(
+        return self._authed_request(
             "POST",
             "/courses/{}/labImages/{}/labs".format(course_id, image_id),
             body=params,
             params={"action": "asyncPublish", "labId": lab_id},
         )
 
-        return resp
-
     def get_lab_items(self, course_id, image_id, lab_id):
         """Get a list of items using a lab."""
 
-        resp = self._authed_request(
+        return self._authed_request(
             "GET",
             "/courses/{}/labImages/{}/labs/{}/itemsUsingLab".format(
                 course_id, image_id, lab_id
             ),
         )
 
-        return resp
-
-    def _authed_request(self, *args, **kwargs):
+    def _authed_request(self, method, path, *args, **kwargs):
         """Send a request with Coursera auth headers."""
 
-        arglist = list(args)
-        arglist[1] = self.API_ROOT + arglist[1]
+        # Prefix all relative paths with the API_ROOT
+        path = self.API_ROOT + path
+
+        # Attach the auth argument to our request
         kwdict = dict(kwargs)
         kwdict["auth"] = self.auth
-        req = requests.Request(*arglist, **kwdict).prepare()
+
+        # Convert our arguments into a request object
+        req = requests.Request(method, path, *args, **kwdict).prepare()
+
+        # If we're submitting a body, it needs the application/json header.
+        if "body" in kwargs:
+            req.headers["Content-Type"] = "application/json"
+
+        # Send the request!
         return requests.Session().send(req)
 
 
-if __name__ == "__main__":
+def main():
     logging.basicConfig(level=logging.DEBUG)
-    Coursera().get_images("ZQnMj8N9EemFBg6_bG2HQg")
+    resp = Coursera().get_images("cv72QmJBEeuSOhJSWorwXw")
+    print(resp)
+    print(resp.json())
+    # Coursera().get_images("ZQnMj8N9EemFBg6_bG2HQg")
+
+
+if __name__ == "__main__":
+    main()
