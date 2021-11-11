@@ -8,6 +8,7 @@ from coursera_autograder.commands import oauth2
 from coursera.credentials import Credentials
 from coursera.refresher_auth import RefresherAuth
 from coursera import API_ROOT
+from .models import User, LabImage, Lab, ItemReference
 
 
 def filter_params(params, keys):
@@ -20,6 +21,10 @@ def filter_params(params, keys):
             )
 
 
+class UnsupportedError(Exception):
+    pass
+
+
 class Coursera:
     """Coursera API client."""
 
@@ -27,8 +32,10 @@ class Coursera:
         creds = Credentials(
             client_id=os.environ.get("COURSERA_CLIENT_ID"),
             client_secret=os.environ.get("COURSERA_CLIENT_SECRET"),
-            scopes="view_profile access_course_authoring_api",
-            refresh_token=os.environ.get("COURSERA_REFRESH_TOKEN_XXX"),
+            refresh_token=os.environ.get("COURSERA_REFRESH_TOKEN"),
+            scopes=os.environ.get(
+                "COURSERA_SCOPES", "view_profile access_course_authoring_api"
+            ),
         )
 
         if creds.refresh_token:
@@ -37,6 +44,17 @@ class Coursera:
         else:
             logging.info("Refresh token not detected. Using Coursera's OAuth server.")
             self.auth = oauth2.build_oauth2(creds).build_authorizer()
+
+    def whoami(self) -> User:
+        """Get your user profile."""
+
+        return User(
+            self._authed_request(
+                "GET",
+                "/externalBasicProfiles.v1",
+                params={"q": "me", "fields": "name,timezone,locale,privacy"},
+            )[0]
+        )
 
     def create_asset(self, course_id, params=None):
         """Create an asset for a course."""
@@ -72,21 +90,26 @@ class Coursera:
     def get_course(self, course_slug):
         """Get details of a course from its slug."""
 
+        raise UnsupportedError("get_course({!r})".format(course_slug))
         return self._authed_request(
             "GET", "/onDemandCourses.v1", params={"q": "slug", "slug": course_slug}
-        )
+        )[0]
 
-    def get_images(self, course_id):
+    def get_images(self, course_id) -> [LabImage]:
         """Get a list of images for a course."""
 
-        return self._authed_request("GET", "/v1/courses/{}/labImages".format(course_id))
+        resp = self._authed_request("GET", "/v1/courses/{}/labImages".format(course_id))
 
-    def get_labs(self, course_id, image_id):
+        return [LabImage(x) for x in resp]
+
+    def get_labs(self, course_id, image_id) -> [Lab]:
         """Get a list of labs using an image for a course."""
 
-        return self._authed_request(
+        resp = self._authed_request(
             "GET", "/v1/courses/{}/labImages/{}/labs".format(course_id, image_id),
         )
+
+        return [Lab(x) for x in resp]
 
     def update_lab(self, course_id, image_id, lab_id, params=None):
         """Update the details of a lab."""
@@ -101,6 +124,18 @@ class Coursera:
             "/v1/courses/{}/labImages/{}/labs/{}".format(course_id, image_id, lab_id),
             body=params,
         )
+
+    def get_lab_items(self, course_id, image_id, lab_id) -> [ItemReference]:
+        """Get a list of items using a lab."""
+
+        resp = self._authed_request(
+            "GET",
+            "/v1/courses/{}/labImages/{}/labs/{}/itemsUsingLab".format(
+                course_id, image_id, lab_id
+            ),
+        )
+
+        return [ItemReference(x) for x in resp]
 
     def create_mount_point(self, course_id, image_id, lab_id, params=None):
         """Create or update a mount point for a lab."""
@@ -147,16 +182,6 @@ class Coursera:
             "/v1/courses/{}/labImages/{}/labs".format(course_id, image_id),
             body=params,
             params={"action": "asyncPublish", "labId": lab_id},
-        )
-
-    def get_lab_items(self, course_id, image_id, lab_id):
-        """Get a list of items using a lab."""
-
-        return self._authed_request(
-            "GET",
-            "/v1/courses/{}/labImages/{}/labs/{}/itemsUsingLab".format(
-                course_id, image_id, lab_id
-            ),
         )
 
     def _authed_request(self, method, path, *args, **kwargs):
