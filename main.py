@@ -1,10 +1,14 @@
 """Coursera API Client."""
 
 import os
+from datetime import datetime, timedelta
 from dataclasses import dataclass
 import logging
 import requests
 from coursera_autograder.commands import oauth2
+
+API_ROOT = "https://api.coursera.org/api/v1"
+ACCOUNT_ROOT = "https://accounts.coursera.org/oauth2/v1"
 
 
 @dataclass
@@ -14,6 +18,54 @@ class Credentials:
     client_id: str
     client_secret: str
     scopes: str
+    refresh_token: str
+
+
+class CourseraRefresherAuth(requests.auth.AuthBase):
+    """Authenticate requests based on your client account creds and a refresh token."""
+
+    def __init__(self, creds):
+        self.creds = creds
+        self.access_token = None
+        self.expires_at = 0
+
+    def is_valid(self):
+        """Do we have a valid access token?"""
+        return self.access_token and datetime.now() < self.expires_at
+
+    def refresh(self):
+        """Fetch a fresh access token."""
+        resp = requests.post(
+            ACCOUNT_ROOT + "/token",
+            data={
+                "refresh_token": self.creds.refresh_token,
+                "grant_type": "refresh_token",
+                "client_id": self.creds.client_id,
+                "client_secret": self.creds.client_secret,
+                "redirect_uri": "http://localhost:9876/callback",
+            },
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(
+                "Unable to get a access token based on the supplied refresh token."
+            )
+
+        value = resp.json()
+        self.access_token = value["access_token"]
+        self.expires_at = datetime.now() + timedelta(seconds=value["expires_in"])
+        return True
+
+    def __call__(self, request):
+        if not self.is_valid():
+            self.refresh()
+
+        request.headers["Authorization"] = "Bearer {}".format(self.access_token)
+        return request
+
+    def __repr__(self):
+        return "<CourseraRefresherAuth token={} expires_at={}>".format(
+            self.access_token, self.expires_at
+        )
 
 
 def filter_params(params, keys):
@@ -29,15 +81,20 @@ def filter_params(params, keys):
 class Coursera:
     """Coursera API client."""
 
-    API_ROOT = "https://api.coursera.org/api/v1"
-
     def __init__(self):
-        self.creds = Credentials(
+        creds = Credentials(
             client_id=os.environ.get("COURSERA_CLIENT_ID"),
             client_secret=os.environ.get("COURSERA_CLIENT_SECRET"),
             scopes="view_profile access_course_authoring_api",
+            refresh_token=os.environ.get("COURSERA_REFRESH_TOKEN"),
         )
-        self.auth = oauth2.build_oauth2(self.creds).build_authorizer()
+
+        if creds.refresh_token:
+            logging.info("Refresh token detected. Using CourseraRefresherAuth.")
+            self.auth = CourseraRefresherAuth(creds)
+        else:
+            logging.info("Refresh token not detected. Using Coursera's OAuth server.")
+            self.auth = oauth2.build_oauth2(creds).build_authorizer()
 
     def create_asset(self, course_id, params=None):
         """Create an asset for a course."""
@@ -157,7 +214,7 @@ class Coursera:
         """Send a request with Coursera auth headers."""
 
         # Prefix all relative paths with the API_ROOT
-        path = self.API_ROOT + path
+        path = API_ROOT + path
 
         # Attach the auth argument to our request
         kwdict = dict(kwargs)
@@ -175,11 +232,10 @@ class Coursera:
 
 
 def main():
+    """main"""
     logging.basicConfig(level=logging.DEBUG)
-    resp = Coursera().get_images("cv72QmJBEeuSOhJSWorwXw")
-    print(resp)
-    print(resp.json())
-    # Coursera().get_images("ZQnMj8N9EemFBg6_bG2HQg")
+    client = Coursera()
+    client.get_images("ZQnMj8N9EemFBg6_bG2HQg")
 
 
 if __name__ == "__main__":
