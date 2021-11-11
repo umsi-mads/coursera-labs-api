@@ -1,14 +1,18 @@
 """Test script"""
 
 import logging
-from coursera_labs import Coursera
+import pprint
+from coursera import Coursera
 
 
 def main():
     """main"""
     logging.basicConfig(level=logging.DEBUG)
     client = Coursera()
-    client.get_images("ZQnMj8N9EemFBg6_bG2HQg")
+    # course_id = "iL122bLfEemPPg78ueP4bg"
+    course_id = "TAoqsmUpEemZsgqSEQNWtg"
+    images = client.get_images(course_id)
+    pprint.pprint(images)
 
 
 if __name__ == "__main__":
