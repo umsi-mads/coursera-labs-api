@@ -186,4 +186,4 @@ class Coursera:
                 "{} Error: {}".format(resp.status_code, resp.json()["message"])
             )
 
-        return resp.json()
+        return resp.json()["elements"]
