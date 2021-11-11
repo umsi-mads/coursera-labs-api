@@ -5,9 +5,10 @@ import logging
 import requests
 
 from coursera_autograder.commands import oauth2
-from coursera.credentials import Credentials
-from coursera.refresher_auth import RefresherAuth
-from coursera import API_ROOT
+
+from . import API_ROOT
+from .credentials import Credentials
+from .refresher_auth import RefresherAuth
 from .models import User, LabImage, Lab, ItemReference
 
 
