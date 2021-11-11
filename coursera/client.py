@@ -206,9 +206,6 @@ class Coursera:
         # Send the request!
         resp = requests.Session().send(req)
 
-        if resp.status_code != 200:
-            raise RuntimeError(
-                "{} Error: {}".format(resp.status_code, resp.json()["message"])
-            )
+        resp.raise_for_status()
 
         return resp.json()["elements"]

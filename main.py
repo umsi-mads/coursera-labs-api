@@ -8,7 +8,7 @@ def main():
     """main"""
     # logging.basicConfig(level=logging.DEBUG)
     client = Coursera()
-    client.get_course("siads505")
+    # client.get_course("siads505")
     course_id = "iL122bLfEemPPg78ueP4bg"
     # course_id = "TAoqsmUpEemZsgqSEQNWtg"
     images = client.get_images(course_id)
