@@ -3,10 +3,16 @@ from dataclasses import dataclass
 
 class CourseraApiModel:
     def __init__(self, data):
-        fields = self.__class__.__dict__["__dataclass_fields__"].keys()
+        fields = list(self.__class__.__dict__["__dataclass_fields__"].keys())
         for key in data:
             if key in fields:
                 setattr(self, key, data[key])
+                fields.remove(key)
+
+        # Set default values to prevent __repr__ failing
+        for field in fields:
+            if not hasattr(self, field):
+                setattr(self, field, None)
 
 
 @dataclass(init=False)
@@ -47,7 +53,7 @@ class LabImage(CourseraApiModel):
 class LabMountPoint(CourseraApiModel):
     mountPath: str
     isDeletable: bool
-    isPathRenameable: bool
+    isPathRenamable: bool
     isReadOnly: bool
 
 
