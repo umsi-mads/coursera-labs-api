@@ -50,7 +50,7 @@ class Coursera:
         """Get your user profile."""
 
         return User(
-            self._authed_request(
+            self.__call(
                 "GET",
                 "/externalBasicProfiles.v1",
                 params={"q": "me", "fields": "name,timezone,locale,privacy"},
@@ -77,36 +77,38 @@ class Coursera:
             ],
         )
 
-        return self._authed_request(
+        return self.__call(
             "POST", "/v1/courses/{}/assets".format(course_id), body=params,
         )
 
     def get_asset(self, course_id, asset_id):
         """Get an asset for a course."""
 
-        return self._authed_request(
+        return self.__call(
             "GET", "/v1/courses/{}/assets/{}".format(course_id, asset_id),
         )
 
     def get_course(self, course_slug):
         """Get details of a course from its slug."""
 
-        raise UnsupportedError("get_course({!r})".format(course_slug))
-        return self._authed_request(
+        raise UnsupportedError(
+            "get_course({!r}) not currently supported".format(course_slug)
+        )
+        return self.__call(
             "GET", "/onDemandCourses.v1", params={"q": "slug", "slug": course_slug}
         )[0]
 
     def get_images(self, course_id) -> [LabImage]:
         """Get a list of images for a course."""
 
-        resp = self._authed_request("GET", "/v1/courses/{}/labImages".format(course_id))
+        resp = self.__call("GET", "/v1/courses/{}/labImages".format(course_id))
 
         return [LabImage(x) for x in resp]
 
     def get_labs(self, course_id, image_id) -> [Lab]:
         """Get a list of labs using an image for a course."""
 
-        resp = self._authed_request(
+        resp = self.__call(
             "GET", "/v1/courses/{}/labImages/{}/labs".format(course_id, image_id),
         )
 
@@ -120,7 +122,7 @@ class Coursera:
 
         filter_params(params, ["name", "description"])
 
-        return self._authed_request(
+        return self.__call(
             "UPDATE",
             "/v1/courses/{}/labImages/{}/labs/{}".format(course_id, image_id, lab_id),
             body=params,
@@ -129,7 +131,7 @@ class Coursera:
     def get_lab_items(self, course_id, image_id, lab_id) -> [ItemReference]:
         """Get a list of items using a lab."""
 
-        resp = self._authed_request(
+        resp = self.__call(
             "GET",
             "/v1/courses/{}/labImages/{}/labs/{}/itemsUsingLab".format(
                 course_id, image_id, lab_id
@@ -148,7 +150,7 @@ class Coursera:
             params, ["mountPath", "type", "newMountPath", "volumeArchiveAssetId"]
         )
 
-        return self._authed_request(
+        return self.__call(
             "POST",
             "/v1/courses/{}/labImages/{}/labs".format(course_id, image_id),
             body=params,
@@ -163,7 +165,7 @@ class Coursera:
 
         filter_params(params, ["mountPath"])
 
-        return self._authed_request(
+        return self.__call(
             "POST",
             "/v1/courses/{}/labImages/{}/labs".format(course_id, image_id),
             body=params,
@@ -178,14 +180,14 @@ class Coursera:
 
         filter_params(params, ["publishType", "publishSummary"])
 
-        return self._authed_request(
+        return self.__call(
             "POST",
             "/v1/courses/{}/labImages/{}/labs".format(course_id, image_id),
             body=params,
             params={"action": "asyncPublish", "labId": lab_id},
         )
 
-    def _authed_request(self, method, path, *args, **kwargs):
+    def __call(self, method, path, *args, **kwargs):
         """Send a request with Coursera auth headers."""
 
         # Prefix all relative paths with the API_ROOT
@@ -197,8 +199,6 @@ class Coursera:
 
         # Convert our arguments into a request object
         req = requests.Request(method, path, *args, **kwdict).prepare()
-
-        logging.debug(req.headers)
 
         # If we're submitting a body, it needs the application/json header.
         if "body" in kwargs:
