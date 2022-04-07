@@ -1,13 +1,16 @@
 """Test script"""
 
-# import logging
+import logging
 from coursera import Coursera
+import sys
 
 
 def main():
     """main"""
-    # logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG)
     client = Coursera()
+    print(client.whoami())
+
     # client.get_course("siads505")
     course_id = "iL122bLfEemPPg78ueP4bg"
     # course_id = "TAoqsmUpEemZsgqSEQNWtg"

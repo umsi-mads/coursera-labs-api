@@ -1,22 +1,13 @@
-from dataclasses import dataclass
+from typing import List, Optional
+from pydantic import BaseModel
 
 
-class CourseraApiModel:
-    def __init__(self, data):
-        fields = list(self.__class__.__dict__["__dataclass_fields__"].keys())
-        for key in data:
-            if key in fields:
-                setattr(self, key, data[key])
-                fields.remove(key)
-
-        # Set default values to prevent __repr__ failing
-        for field in fields:
-            if not hasattr(self, field):
-                setattr(self, field, None)
+class Model(BaseModel):
+    class Config:
+        orm_mode = True
 
 
-@dataclass(init=False)
-class User(CourseraApiModel):
+class User(Model):
     id: str
     name: str
     timezone: str
@@ -24,56 +15,37 @@ class User(CourseraApiModel):
     privacy: int
 
 
-@dataclass(init=False)
-class LabImageConfig(CourseraApiModel):
+class LabImageConfig(Model):
     typeName: str
     imageAssetId: str
     httpPort: int
     healthCheckPath: str
 
 
-@dataclass(init=False)
-class LabImage(CourseraApiModel):
+class LabImage(Model):
     id: str
     name: str
-    description: str
+    description: Optional[str]
     maxMemoryInMb: int
     maxCpus: float
     labImageConfig: LabImageConfig
 
-    def __init__(self, data):
-        self.id = data["id"]
-        data["labImage"]["labImageConfig"] = LabImageConfig(
-            data["labImage"]["labImageConfig"]
-        )
-        super().__init__(data["labImage"])
 
-
-@dataclass(init=False)
-class LabMountPoint(CourseraApiModel):
+class LabMountPoint(Model):
     mountPath: str
     isDeletable: bool
     isPathRenamable: bool
     isReadOnly: bool
 
 
-@dataclass(init=False)
-class Lab(CourseraApiModel):
+class Lab(Model):
     id: str
     name: str
-    description: str
-    labMountPoints: [LabMountPoint]
-
-    def __init__(self, data):
-        self.id = data["id"]
-        data["lab"]["labMountPoints"] = [
-            LabMountPoint(x) for x in data["lab"]["labMountPoints"]
-        ]
-        super().__init__(data["lab"])
+    description: Optional[str]
+    labMountPoints: List[LabMountPoint]
 
 
-@dataclass(init=False)
-class ItemReference(CourseraApiModel):
+class ItemReference(Model):
     courseId: str
     branchId: str
     moduleId: str

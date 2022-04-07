@@ -53,7 +53,7 @@ class Coursera:
         """Get your user profile."""
 
         return User(
-            self.__request(
+            **self.__request(
                 "GET",
                 "/externalBasicProfiles.v1",
                 params={"q": "me", "fields": "name,timezone,locale,privacy"},
@@ -80,23 +80,17 @@ class Coursera:
             ],
         )
 
-        return self.__request(
-            "POST", "/v1/courses/{}/assets".format(course_id), body=params,
-        )
+        return self.__request("POST", f"/v1/courses/{course_id}/assets", body=params)
 
     def get_asset(self, course_id, asset_id):
         """Get an asset for a course."""
 
-        return self.__request(
-            "GET", "/v1/courses/{}/assets/{}".format(course_id, asset_id),
-        )
+        return self.__request("GET", f"/v1/courses/{course_id}/assets/{asset_id}")
 
     def get_course(self, course_slug):
         """Get details of a course from its slug."""
 
-        raise UnsupportedError(
-            "get_course({!r}) not currently supported".format(course_slug)
-        )
+        raise UnsupportedError(f"get_course({course_slug!r}) not currently supported")
         return self.__request(
             "GET", "/onDemandCourses.v1", params={"q": "slug", "slug": course_slug}
         )[0]
@@ -104,18 +98,18 @@ class Coursera:
     def get_images(self, course_id) -> [LabImage]:
         """Get a list of images for a course."""
 
-        resp = self.__request("GET", "/v1/courses/{}/labImages".format(course_id))
+        resp = self.__request("GET", f"/v1/courses/{course_id}/labImages")
 
-        return [LabImage(x) for x in resp]
+        return [LabImage(id=x["id"], **x["labImage"]) for x in resp]
 
     def get_labs(self, course_id, image_id) -> [Lab]:
         """Get a list of labs using an image for a course."""
 
         resp = self.__request(
-            "GET", "/v1/courses/{}/labImages/{}/labs".format(course_id, image_id),
+            "GET", f"/v1/courses/{course_id}/labImages/{image_id}/labs"
         )
 
-        return [Lab(x) for x in resp]
+        return [Lab(id=x["id"], **x["lab"]) for x in resp]
 
     def update_lab(self, course_id, image_id, lab_id, params=None):
         """Update the details of a lab."""
@@ -127,7 +121,7 @@ class Coursera:
 
         return self.__request(
             "UPDATE",
-            "/v1/courses/{}/labImages/{}/labs/{}".format(course_id, image_id, lab_id),
+            f"/v1/courses/{course_id}/labImages/{image_id}/labs/{lab_id}",
             body=params,
         )
 
@@ -136,12 +130,12 @@ class Coursera:
 
         resp = self.__request(
             "GET",
-            "/v1/courses/{}/labImages/{}/labs/{}/itemsUsingLab".format(
-                course_id, image_id, lab_id
-            ),
+            f"/v1/courses/{course_id}/labImages/{image_id}/labs/{lab_id}/itemsUsingLab",
         )
 
-        return [ItemReference(x) for x in resp]
+        if resp:
+            print(resp[0])
+        return [ItemReference(**x) for x in resp]
 
     def create_mount_point(self, course_id, image_id, lab_id, params=None):
         """Create or update a mount point for a lab."""
@@ -155,7 +149,7 @@ class Coursera:
 
         return self.__request(
             "POST",
-            "/v1/courses/{}/labImages/{}/labs".format(course_id, image_id),
+            f"/v1/courses/{course_id}/labImages/{image_id}/labs",
             body=params,
             params={"action": "createOrPatchMountPoint", "labId": lab_id},
         )
@@ -170,7 +164,7 @@ class Coursera:
 
         return self.__request(
             "POST",
-            "/v1/courses/{}/labImages/{}/labs".format(course_id, image_id),
+            f"/v1/courses/{course_id}/labImages/{image_id}/labs",
             body=params,
             params={"action": "deleteMountPoint", "labId": lab_id},
         )
@@ -185,7 +179,7 @@ class Coursera:
 
         return self.__request(
             "POST",
-            "/v1/courses/{}/labImages/{}/labs".format(course_id, image_id),
+            f"/v1/courses/{course_id}/labImages/{image_id}/labs",
             body=params,
             params={"action": "asyncPublish", "labId": lab_id},
         )
@@ -201,8 +195,33 @@ class Coursera:
             kwargs["headers"]["Content-Type"] = "application/json"
 
         # Send the request!
+        logging.debug("[%s] %s ? %s", method, path, args)
         resp = self.session.request(method, path, *args, **kwargs)
 
-        resp.raise_for_status()
+        # TODO: Try to figure out how to more intelligently deal with this.
+        # Sometimes I get a strange 400 error that suggests that it's a bad request,
+        # but the details sound like it's an infra problem on Coursera's side:
+        # HTTP/1.1 400 None
+        #
+        # {"errorCode":"Bad request.","message":"Course Authoring API:\nDownstream gRPC
+        # error in coursera.proto.caapi.lab.v1beta1.CaLabAPI/GetLabs, RequestID:
+        # Dze9K7abEeyAOQ6cF2Gznw, Reason: INVALID_ARGUMENT: httpStatus=400,
+        # responseHeaders={content-length=[102], content-type=[application/json],
+        # date=[Thu, 07 Apr 2022 17:49:23 GMT], server=[envoy],
+        # x-coursera-envoy-path-routing-matched=[learningItems],
+        # x-envoy-upstream-service-time=[469]},
+        # responseBody='{\"errorCode\":null,\"message\":\"Workspace template  doesn't
+        # have a instructor workspace.\",\"details\":null}', Source:
+        # Instance[application: ca-api-application, image: ami-0c2103524b27197aa,
+        # instance: i-0b86419af043a83d2, ip: 10.1.22.38, asg:
+        # ca-api-application-vpcprod-55, env: vpcprod]","details":null}
+        try:
+            resp.raise_for_status()
+        except requests.exceptions.HTTPError:
+            logging.error(
+                "Recieved a bad response from Coursera: %s",
+                resp.content.decode("utf-8"),
+            )
+            return []
 
         return resp.json()["elements"]

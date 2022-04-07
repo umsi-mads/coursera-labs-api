@@ -1,7 +1,10 @@
 """An authentication mechanism that only needs a refresh token."""
 
+import logging
 from datetime import datetime, timedelta
+
 import requests
+
 from coursera import ACCOUNT_ROOT
 
 
@@ -19,19 +22,20 @@ class RefresherAuth(requests.auth.AuthBase):
 
     def refresh(self):
         """Fetch a fresh access token."""
-        resp = requests.post(
-            ACCOUNT_ROOT + "/token",
-            data={
-                "refresh_token": self.creds.refresh_token,
-                "grant_type": "refresh_token",
-                "client_id": self.creds.client_id,
-                "client_secret": self.creds.client_secret,
-                "redirect_uri": "http://localhost:9876/callback",
-            },
-        )
+        data = {
+            "refresh_token": self.creds.refresh_token,
+            "grant_type": "refresh_token",
+            "client_id": self.creds.client_id,
+            "client_secret": self.creds.client_secret,
+            "redirect_uri": "http://localhost:9876/callback",
+        }
+        logging.debug("[POST] %s ? %s", ACCOUNT_ROOT + "/token", data)
+        resp = requests.post(ACCOUNT_ROOT + "/token", data=data)
         if resp.status_code != 200:
             raise RuntimeError(
-                "Unable to get a access token based on the supplied refresh token."
+                "Unable to get a access token based on the supplied refresh token: [{}] {}".format(
+                    resp.status_code, resp.json()["msg"]
+                )
             )
 
         value = resp.json()
